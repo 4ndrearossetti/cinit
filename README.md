@@ -35,10 +35,10 @@ The resulting directory will contain:
 - `LICENSE`: A customized MIT license with your name and the current year.
 
 You can customize the initialization with the following repo-specific options:
-- `--owner=<name>`              Sets the owner name for this repo
-- `--license=<type>`            Specifies the license
-- `--files=<list>`              Defines which files to include
-- `--year=<year>`               Sets a specific copyright year
+- `--owner=<name>`              Sets the owner name for this repo.
+- `--license=<type>`            Specifies the license.
+- `--files=<list>`              Defines which files to include.
+- `--year=<year>`               Sets a specific copyright year.
 
 - `--default-owner=<name>`      Permanently change default owner.
 - `--default-license=<type>`    Permanently change default license.
@@ -48,6 +48,9 @@ Examples:
 - `cinit`
 - `cinit --owner="John Doe" --license=MIT`
 - `cinit --default-files="main.c LICENSE"`
+
+Help:
+- `cinit --help`                 Shows info on usage and options.
 
 The resulting directory will contain the specified files, with a customized LICENSE reflecting the provided options.
 
