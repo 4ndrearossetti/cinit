@@ -59,8 +59,12 @@ The resulting directory will contain the specified files, with a customized LICE
 - **Configurable Setup**: Uses `~/.config/cinit/cinit.conf` to store default settings (e.g., license type, included files). Defaults or project-specific settings can be modified with command-line arguments.
 - **Default Templates**: Provides a pre-defined set of files for new projects.
 
+## Demo
+![](demo.gif)
+
 ## Contributing
 Feel free to fork this repository, make improvements, and submit pull requests. Suggestions for new features or bug reports are welcome!
 
 ## License
 This project itself is licensed under the MIT License. See the included LICENSE file for details.
+
