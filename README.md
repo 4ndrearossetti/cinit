@@ -2,6 +2,8 @@
 
 Cinit is a simple bash script designed to initialize new C projects with a set of default files and a customized license. It automates the setup process, allowing users to quickly start coding with a standardized structure.
 
+More details on my website: [andrearossetti.me](https://andrearossetti.me/projects/cinit.html)
+
 ## Installation
 
 1. Clone the repository or download the files to your local machine:
