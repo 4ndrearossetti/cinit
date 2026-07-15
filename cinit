@@ -1,67 +1,118 @@
 #!/bin/bash
 
-# Cinit - A simple script to initialise a new C project with templates
+# Cinit - A simple script to initialise a new project from a profile of templates
 # Usage: cinit [options]
-# Stores templates in ~/.config/cinit/ and copies them to the current directory
+# Global config in ~/.config/cinit/cinit.conf (OWNER_NAME, DEFAULT_PROFILE)
+# Per-profile config in ~/.config/cinit/profiles/<name>/profile.conf (LICENSE, FILES)
+# Scaffolded files live in ~/.config/cinit/profiles/<name>/files/
+# Shared license templates in ~/.config/cinit/templates/licenses/
 # DEFAULT_YEAR is computed dynamically each run
-# OWNER_NAME, DEFAULT_LICENSE, INCLUDE_FILES, and DEFAULT_YEAR can be overridden with repo-specific options
+# All settings can be overridden per run with command-line options
 
-# Load config
+# Config locations
 CONFIG_FILE=~/.config/cinit/cinit.conf
-TEMPLATE_DIR=~/.config/cinit/default
+PROFILES_DIR=~/.config/cinit/profiles
+
+# Load global config (OWNER_NAME, DEFAULT_PROFILE)
 . "$CONFIG_FILE"
 
-# Dynamic year
+# Dynamic defaults
 DEFAULT_YEAR=$(date +%Y)
+PROJECT_NAME=$(basename "$PWD")
+
+# Escape a value for use in a sed replacement string
+sed_escape() {
+    printf '%s' "$1" | sed 's/[\/&]/\\&/g'
+}
+
+# Update KEY="VALUE" in a conf file, appending the line if the key is missing
+set_conf_value() {
+    local file="$1" key="$2" value="$3"
+    local escaped
+    escaped=$(printf '%s\n' "$value" | sed 's/[&\\/]/\\&/g; s/"/\\"/g')
+    if grep -q "^$key=" "$file"; then
+        sed -i "s/^$key=.*/$key=\"$escaped\"/" "$file"
+    else
+        printf '%s="%s"\n' "$key" "$(printf '%s' "$value" | sed 's/"/\\"/g')" >> "$file"
+    fi
+}
 
 # Parse CLI args
+# Per-run overrides are collected here and applied after the profile is loaded.
+# --default-* intents are collected and applied after ALL args are parsed, so
+# --profile= works with them in either argument order.
+CLI_PROFILE=""
+CLI_OWNER=""
+CLI_LICENSE=""
+CLI_FILES=""
+CLI_YEAR=""
+CLI_NAME=""
+SET_OWNER=false;   NEW_OWNER=""
+SET_PROFILE=false; NEW_PROFILE=""
+SET_LICENSE=false; NEW_LICENSE=""
+SET_FILES=false;   NEW_FILES=""
+PERSIST=false
+
 while [ $# -gt 0 ]; do
     case "$1" in
-        --owner=*)  OWNER_NAME="${1#--owner=}"; shift ;;
-        --license=*) DEFAULT_LICENSE="${1#--license=}"; shift ;;
-        --files=*) INCLUDE_FILES="${1#--files=}"; shift ;;
-        --year=*)   DEFAULT_YEAR="${1#--year=}"; shift ;;
+        --profile=*) CLI_PROFILE="${1#--profile=}"; shift ;;
+        --owner=*)   CLI_OWNER="${1#--owner=}"; shift ;;
+        --license=*) CLI_LICENSE="${1#--license=}"; shift ;;
+        --files=*)   CLI_FILES="${1#--files=}"; shift ;;
+        --year=*)    CLI_YEAR="${1#--year=}"; shift ;;
+        --name=*)    CLI_NAME="${1#--name=}"; shift ;;
+
+        --list)
+            echo "Available profiles:"
+            for dir in "$PROFILES_DIR"/*/; do
+                [ -d "$dir" ] || continue
+                echo "  $(basename "$dir")"
+            done
+            exit 0
+            ;;
 
         --default-owner=*)
             NEW_OWNER="${1#--default-owner=}"
-            sed -i "s/^OWNER_NAME=.*/OWNER_NAME=\"$NEW_OWNER\"/" "$CONFIG_FILE"
-            echo "Default owner updated: $NEW_OWNER"
-            exit 0
-            ;;
+            SET_OWNER=true; PERSIST=true; shift ;;
+
+        --default-profile=*)
+            NEW_PROFILE="${1#--default-profile=}"
+            SET_PROFILE=true; PERSIST=true; shift ;;
 
         --default-license=*)
             NEW_LICENSE="${1#--default-license=}"
-            sed -i "s/^DEFAULT_LICENSE=.*/DEFAULT_LICENSE=\"$NEW_LICENSE\"/" "$CONFIG_FILE"
-            echo "Default license updated: $NEW_LICENSE"
-            exit 0
-            ;;
+            SET_LICENSE=true; PERSIST=true; shift ;;
 
         --default-files=*)
             NEW_FILES="${1#--default-files=}"
-            ESCAPED=$(printf '%s\n' "$NEW_FILES" | sed 's/[&\\/]/\\&/g; s/"/\\"/g')
-            sed -i "s/^INCLUDE_FILES=.*/INCLUDE_FILES=\"$ESCAPED\"/" "$CONFIG_FILE"
-            echo "Default files updated: $NEW_FILES"
-            exit 0
-            ;;
+            SET_FILES=true; PERSIST=true; shift ;;
 
         --help|-h)
             cat << 'EOF'
 Usage: cinit [options]
 
 Options:
+--profile=<name>            Selects the profile for this run
+--name=<name>               Sets the project name (default: current directory name)
 --owner=<name>              Sets the owner name for this repo
 --license=<type>            Specifies the license
 --files=<list>              Defines which files to include
 --year=<year>               Sets a specific copyright year
+--list                      Lists available profiles
 
---default-owner=<name>      Permanently change default owner.
---default-license=<type>    Permanently change default license.
---default-files=<list>      Permanently change default files list.
+--default-owner=<name>      Permanently change default owner (global).
+--default-profile=<name>    Permanently change default profile (global).
+--default-license=<type>    Permanently change the active profile's license.
+--default-files=<list>      Permanently change the active profile's files list.
+
+--default-license and --default-files write to the active profile's
+profile.conf; combine them with --profile= to target another profile.
 
 Examples:
 cinit
-cinit --owner="John Doe" --license=MIT
-cinit --default-files="main.c LICENSE"
+cinit --profile=c --owner="John Doe" --license=MIT
+cinit --default-profile=c
+cinit --profile=c --default-files="main.c LICENSE"
 EOF
             exit 0
             ;;
@@ -70,17 +121,91 @@ EOF
     esac
 done
 
-# License file
-LICENSE_FILE=~/.config/cinit/templates/licenses/LICENSE-$DEFAULT_LICENSE
+# Persist --default-* settings, then exit without scaffolding
+if [ "$PERSIST" = true ]; then
+    if [ "$SET_OWNER" = true ]; then
+        set_conf_value "$CONFIG_FILE" OWNER_NAME "$NEW_OWNER"
+        echo "Default owner updated: $NEW_OWNER"
+    fi
+
+    if [ "$SET_PROFILE" = true ]; then
+        if [ ! -f "$PROFILES_DIR/$NEW_PROFILE/profile.conf" ]; then
+            echo "Error: profile '$NEW_PROFILE' not found in $PROFILES_DIR" >&2
+            echo "Run 'cinit --list' to see available profiles." >&2
+            exit 1
+        fi
+        set_conf_value "$CONFIG_FILE" DEFAULT_PROFILE "$NEW_PROFILE"
+        echo "Default profile updated: $NEW_PROFILE"
+    fi
+
+    if [ "$SET_LICENSE" = true ] || [ "$SET_FILES" = true ]; then
+        TARGET_PROFILE="${CLI_PROFILE:-$DEFAULT_PROFILE}"
+        TARGET_CONF="$PROFILES_DIR/$TARGET_PROFILE/profile.conf"
+        if [ ! -f "$TARGET_CONF" ]; then
+            echo "Error: profile '$TARGET_PROFILE' not found in $PROFILES_DIR" >&2
+            echo "Run 'cinit --list' to see available profiles." >&2
+            exit 1
+        fi
+        if [ "$SET_LICENSE" = true ]; then
+            set_conf_value "$TARGET_CONF" LICENSE "$NEW_LICENSE"
+            echo "Default license updated for profile '$TARGET_PROFILE': $NEW_LICENSE"
+        fi
+        if [ "$SET_FILES" = true ]; then
+            set_conf_value "$TARGET_CONF" FILES "$NEW_FILES"
+            echo "Default files updated for profile '$TARGET_PROFILE': $NEW_FILES"
+        fi
+    fi
+    exit 0
+fi
+
+# Resolve profile: --profile= flag, else DEFAULT_PROFILE from global config
+PROFILE="${CLI_PROFILE:-$DEFAULT_PROFILE}"
+PROFILE_DIR="$PROFILES_DIR/$PROFILE"
+PROFILE_CONF="$PROFILE_DIR/profile.conf"
+
+if [ ! -f "$PROFILE_CONF" ]; then
+    echo "Error: profile '$PROFILE' not found in $PROFILES_DIR" >&2
+    echo "Run 'cinit --list' to see available profiles." >&2
+    exit 1
+fi
+
+# Load profile config (LICENSE, FILES)
+. "$PROFILE_CONF"
+
+# Apply per-run overrides
+[ -n "$CLI_OWNER" ]   && OWNER_NAME="$CLI_OWNER"
+[ -n "$CLI_LICENSE" ] && LICENSE="$CLI_LICENSE"
+[ -n "$CLI_FILES" ]   && FILES="$CLI_FILES"
+[ -n "$CLI_YEAR" ]    && DEFAULT_YEAR="$CLI_YEAR"
+[ -n "$CLI_NAME" ]    && PROJECT_NAME="$CLI_NAME"
+
+# License template (shared across profiles)
+LICENSE_FILE=~/.config/cinit/templates/licenses/LICENSE-$LICENSE
+
+# Token substitution: {CINIT_OWNER}, {CINIT_YEAR}, {CINIT_NAME}
+OWNER_ESC=$(sed_escape "$OWNER_NAME")
+YEAR_ESC=$(sed_escape "$DEFAULT_YEAR")
+NAME_ESC=$(sed_escape "$PROJECT_NAME")
+
+# Render a template to a destination, substituting {CINIT_*} tokens.
+# Token-free files are copied verbatim so their bytes are never altered.
+render_file() {
+    local src="$1" dest="$2"
+    if grep -q '{CINIT_' "$src"; then
+        sed "s/{CINIT_OWNER}/$OWNER_ESC/g; s/{CINIT_YEAR}/$YEAR_ESC/g; s/{CINIT_NAME}/$NAME_ESC/g" \
+            "$src" > "$dest"
+    else
+        cp "$src" "$dest"
+    fi
+}
 
 # Copy files
-for file in $INCLUDE_FILES; do
+for file in $FILES; do
     if [ "$file" = "LICENSE" ]; then
-        sed "s/{OWNER_NAME}/$OWNER_NAME/g; s/{DEFAULT_YEAR}/$DEFAULT_YEAR/g" \
-            "$LICENSE_FILE" > "./LICENSE"
+        render_file "$LICENSE_FILE" "./LICENSE"
     else
         mkdir -p "$(dirname "./$file")"
-        cp "$TEMPLATE_DIR/$file" "./$file"
+        render_file "$PROFILE_DIR/files/$file" "./$file"
     fi
     echo "Loaded $file"
 done
@@ -89,4 +214,3 @@ echo
 echo "Project initialized!"
 echo "→ Build: make"
 echo "→ Run: make run"
-
