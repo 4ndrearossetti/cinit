@@ -220,5 +220,13 @@ done
 
 echo
 echo "Project initialized!"
-echo "→ Build: make"
-echo "→ Run: make run"
+case " $FILES " in
+    *" Makefile "*)
+        echo "→ Build: make"
+        echo "→ Run: make run"
+        ;;
+    *" CMakeLists.txt "*)
+        echo "→ Build: cmake -S . -B build && cmake --build build"
+        echo "→ Run: ./build/$PROJECT_NAME"
+        ;;
+esac
