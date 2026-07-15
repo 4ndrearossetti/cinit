@@ -1,0 +1,23 @@
+# Build directories
+build/
+cmake-build-*/
+
+# CMake artifacts (in-source builds)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+Makefile
+
+# Objects and binaries
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+
+# Editor/tooling
+.cache/

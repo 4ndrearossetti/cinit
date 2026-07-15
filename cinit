@@ -121,21 +121,15 @@ EOF
     esac
 done
 
-# Persist --default-* settings, then exit without scaffolding
+# Persist --default-* settings, then exit without scaffolding.
+# All validation happens BEFORE any conf file is written, so a bad flag
+# never leaves a partial update behind.
 if [ "$PERSIST" = true ]; then
-    if [ "$SET_OWNER" = true ]; then
-        set_conf_value "$CONFIG_FILE" OWNER_NAME "$NEW_OWNER"
-        echo "Default owner updated: $NEW_OWNER"
-    fi
-
-    if [ "$SET_PROFILE" = true ]; then
-        if [ ! -f "$PROFILES_DIR/$NEW_PROFILE/profile.conf" ]; then
-            echo "Error: profile '$NEW_PROFILE' not found in $PROFILES_DIR" >&2
-            echo "Run 'cinit --list' to see available profiles." >&2
-            exit 1
-        fi
-        set_conf_value "$CONFIG_FILE" DEFAULT_PROFILE "$NEW_PROFILE"
-        echo "Default profile updated: $NEW_PROFILE"
+    # Validate
+    if [ "$SET_PROFILE" = true ] && [ ! -f "$PROFILES_DIR/$NEW_PROFILE/profile.conf" ]; then
+        echo "Error: profile '$NEW_PROFILE' not found in $PROFILES_DIR" >&2
+        echo "Run 'cinit --list' to see available profiles." >&2
+        exit 1
     fi
 
     if [ "$SET_LICENSE" = true ] || [ "$SET_FILES" = true ]; then
@@ -146,15 +140,29 @@ if [ "$PERSIST" = true ]; then
             echo "Run 'cinit --list' to see available profiles." >&2
             exit 1
         fi
-        if [ "$SET_LICENSE" = true ]; then
-            set_conf_value "$TARGET_CONF" LICENSE "$NEW_LICENSE"
-            echo "Default license updated for profile '$TARGET_PROFILE': $NEW_LICENSE"
-        fi
-        if [ "$SET_FILES" = true ]; then
-            set_conf_value "$TARGET_CONF" FILES "$NEW_FILES"
-            echo "Default files updated for profile '$TARGET_PROFILE': $NEW_FILES"
-        fi
     fi
+
+    # Apply
+    if [ "$SET_OWNER" = true ]; then
+        set_conf_value "$CONFIG_FILE" OWNER_NAME "$NEW_OWNER"
+        echo "Default owner updated: $NEW_OWNER"
+    fi
+
+    if [ "$SET_PROFILE" = true ]; then
+        set_conf_value "$CONFIG_FILE" DEFAULT_PROFILE "$NEW_PROFILE"
+        echo "Default profile updated: $NEW_PROFILE"
+    fi
+
+    if [ "$SET_LICENSE" = true ]; then
+        set_conf_value "$TARGET_CONF" LICENSE "$NEW_LICENSE"
+        echo "Default license updated for profile '$TARGET_PROFILE': $NEW_LICENSE"
+    fi
+
+    if [ "$SET_FILES" = true ]; then
+        set_conf_value "$TARGET_CONF" FILES "$NEW_FILES"
+        echo "Default files updated for profile '$TARGET_PROFILE': $NEW_FILES"
+    fi
+
     exit 0
 fi
 

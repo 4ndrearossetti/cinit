@@ -24,9 +24,10 @@ More details on my website: [andrearossetti.me](https://andrearossetti.me/projec
 ~/.config/cinit/
 ├── cinit.conf            # Global settings: OWNER_NAME, DEFAULT_PROFILE
 ├── profiles/
-│   └── c/                # A profile (the default one shipped with cinit)
-│       ├── profile.conf  # This profile's defaults: LICENSE, FILES
-│       └── files/        # The files scaffolded by this profile
+│   ├── c/                # A profile (the default one shipped with cinit)
+│   │   ├── profile.conf  # This profile's defaults: LICENSE, FILES
+│   │   └── files/        # The files scaffolded by this profile
+│   └── cpp-eigen/        # C++17 + CMake + system Eigen profile
 └── templates/
     └── licenses/         # License templates, shared by all profiles
 ```
@@ -35,6 +36,10 @@ Separation of concerns:
 - The **global** `cinit.conf` holds only `OWNER_NAME` and `DEFAULT_PROFILE`.
 - Each **profile's** `profile.conf` holds only that profile's `LICENSE` and `FILES`.
 - **License templates** are shared by all profiles under `templates/licenses/`.
+
+Two profiles ship with cinit:
+- `c` (the default): Makefile-based C project with main.c, .gitignore, README.md, and an MIT license.
+- `cpp-eigen`: C++17 CMake project linking against the system Eigen3 (`find_package(Eigen3 REQUIRED)`), with src/main.cpp, .gitignore, README.md, and an MIT license. Use it with `cinit --profile=cpp-eigen`.
 
 To add your own profile, create `~/.config/cinit/profiles/<name>/` with a `profile.conf` and a `files/` directory.
 
