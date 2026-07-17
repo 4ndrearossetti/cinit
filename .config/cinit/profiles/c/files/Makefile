@@ -16,7 +16,7 @@ TARGET = main
 SRCS = main.c
 
 # Object files (now in build/)
-OBJS = build/$(SRCS:.c=.o)
+OBJS = $(patsubst %.c,build/%.o,$(SRCS))
 
 # Default target
 all: build/$(TARGET)
